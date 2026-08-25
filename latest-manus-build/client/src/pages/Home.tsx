@@ -43,20 +43,28 @@ const STAGES = [
   { id: "snow" as const, number: "03", title: "جزيرة الثلوج", subtitle: "عاصفة وطرق تتجمد", image: "/manus-storage/rescue-snow-island-realistic-v2_7a67a7e9.png", icon: Snowflake, difficulty: "شديد" },
 ];
 
-async function downloadAndVerify(entry: PreloadEntry) {
-  const response = await fetch(entry.url, { cache: "force-cache" });
-  if (!response.ok) throw new Error(`${entry.label} (${response.status})`);
-  const blob = await response.blob();
-  if (!blob.size) throw new Error(`${entry.label} فارغ`);
-  if (entry.type === "image") {
-    const objectUrl = URL.createObjectURL(blob);
-    try {
-      const image = new Image();
-      image.src = objectUrl;
-      await image.decode();
-    } finally {
-      URL.revokeObjectURL(objectUrl);
+const RETRY_DELAYS = [600, 1600];
+
+async function downloadAndVerify(entry: PreloadEntry, attempt = 0): Promise<void> {
+  try {
+    const response = await fetch(entry.url, { cache: "force-cache" });
+    if (!response.ok) throw new Error(`${entry.label} (${response.status})`);
+    const blob = await response.blob();
+    if (!blob.size) throw new Error(`${entry.label} فارغ`);
+    if (entry.type === "image") {
+      const objectUrl = URL.createObjectURL(blob);
+      try {
+        const image = new Image();
+        image.src = objectUrl;
+        await image.decode();
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
     }
+  } catch (error) {
+    if (attempt >= RETRY_DELAYS.length) throw error;
+    await new Promise((resolve) => window.setTimeout(resolve, RETRY_DELAYS[attempt]));
+    return downloadAndVerify(entry, attempt + 1);
   }
 }
 
