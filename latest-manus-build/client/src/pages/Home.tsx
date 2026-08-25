@@ -23,9 +23,18 @@ const STAGE_ASSETS: PreloadEntry[] = [
   { url: "/manus-storage/rescue-residential-premium_558c6ecc.png", type: "image", label: "الأحياء" },
   { url: "/manus-storage/smoke-sheet_86702482.png", type: "image", label: "دخان البركان" },
   { url: "/manus-storage/snowflakes_7775ae91.png", type: "image", label: "ثلوج العاصفة" },
+  { url: "/manus-storage/rescue-fireball_kenney.png", type: "image", label: "قذائف الحمم" },
+  { url: "/manus-storage/rescue-impact-glow_kenney.png", type: "image", label: "أثر الارتطام" },
+  { url: "/manus-storage/rescue-spark_kenney.png", type: "image", label: "شرر البركان" },
   { url: "/manus-storage/rescue-storm-real_aef36702.ogg", type: "audio", label: "رياح الساحل" },
   { url: "/manus-storage/rescue-ambulance-field-real_9c9f7683.ogg", type: "audio", label: "إسعاف ميداني" },
   { url: "/manus-storage/rescue-thunder-cc0_0aec8a64.ogg", type: "audio", label: "رعد" },
+  { url: "/manus-storage/rescue-volcano-rumble_385098.ogg", type: "audio", label: "دمدمة البركان" },
+  { url: "/manus-storage/rescue-eruption-blast_675739.ogg", type: "audio", label: "ثوران البركان" },
+  { url: "/manus-storage/rescue-lava-flow_675730.ogg", type: "audio", label: "تدفق اللاڤا" },
+  { url: "/manus-storage/rescue-winter-wind_438876.ogg", type: "audio", label: "رياح الشتاء" },
+  { url: "/manus-storage/rescue-blizzard-wind_493680.ogg", type: "audio", label: "عاصفة الثلج" },
+  { url: "/manus-storage/rescue-heavy-snowfall_22606.ogg", type: "audio", label: "تساقط الثلوج الكثيف" },
 ];
 
 const STAGES = [

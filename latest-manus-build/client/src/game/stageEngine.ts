@@ -258,3 +258,153 @@ export function tickMission(state: MissionState, delta: number): MissionState {
     lastEvent,
   };
 }
+
+/* ===== مسار اللاڤا وقذائف البركان (دوال نقية قابلة للاختبار) ===== */
+
+export type FlowPoint = { x: number; y: number };
+
+export const VOLCANO_CRATER: FlowPoint = { x: 135, y: 70 };
+export const BOMB_LANDING_BOUNDS = { x0: 330, x1: 900, y0: 210, y1: 560 };
+export const BOMB_IMPACT_WINDOW = 0.9;
+export const BOMB_SCORCH_LINGER = 20;
+
+export function mulberry32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function getLavaTimedNodes(stage: StageDefinition): StageNode[] {
+  return stage.nodes
+    .filter((node) => node.lavaAt !== undefined)
+    .sort((a, b) => (a.lavaAt ?? 0) - (b.lavaAt ?? 0));
+}
+
+export function getLavaPath(stage: StageDefinition): FlowPoint[] {
+  return [VOLCANO_CRATER, ...getLavaTimedNodes(stage).map((node) => ({ x: node.x, y: node.y }))];
+}
+
+export function pathLength(points: FlowPoint[]): number {
+  let total = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    total += Math.hypot(points[index].x - points[index - 1].x, points[index].y - points[index - 1].y);
+  }
+  return total;
+}
+
+export function pointAlongPath(points: FlowPoint[], distance: number): FlowPoint & { angle: number } {
+  const safe = Math.max(0, Math.min(distance, pathLength(points)));
+  let remaining = safe;
+  for (let index = 1; index < points.length; index += 1) {
+    const start = points[index - 1];
+    const end = points[index];
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    if (remaining <= length || index === points.length - 1) {
+      const ratio = length ? Math.max(0, Math.min(1, remaining / length)) : 0;
+      return {
+        x: start.x + (end.x - start.x) * ratio,
+        y: start.y + (end.y - start.y) * ratio,
+        angle: (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI,
+      };
+    }
+    remaining -= length;
+  }
+  const last = points[points.length - 1];
+  return { x: last.x, y: last.y, angle: 0 };
+}
+
+/** نسبة مسار اللاڤا المُستهلك عند زمن معين: تنمو خطيًا بين مواعيد بلوغ الأحياء. */
+export function getLavaFront(stage: StageDefinition, elapsed: number): number {
+  const timed = getLavaTimedNodes(stage);
+  if (!timed.length) return 0;
+  const anchors = [0, ...timed.map((node) => node.lavaAt as number)];
+  const segments = anchors.length - 1;
+  const time = Math.max(0, Math.min(elapsed, anchors[segments]));
+  for (let index = 1; index < anchors.length; index += 1) {
+    if (time <= anchors[index]) {
+      const span = anchors[index] - anchors[index - 1] || 1;
+      return (index - 1 + Math.max(0, (time - anchors[index - 1]) / span)) / segments;
+    }
+  }
+  return 1;
+}
+
+/** قص نقطة بداية المسار حتى مسافة مشي محددة (لرسم جبهة اللاڤا جزئيًا). */
+export function trimPathToDistance(points: FlowPoint[], distance: number): FlowPoint[] {
+  const total = pathLength(points);
+  const capped = Math.max(0, Math.min(distance, total));
+  if (capped >= total) return points;
+  const trimmed: FlowPoint[] = [points[0]];
+  let remaining = capped;
+  for (let index = 1; index < points.length; index += 1) {
+    const start = points[index - 1];
+    const end = points[index];
+    const length = Math.hypot(end.x - start.x, end.y - start.y);
+    if (remaining <= length) {
+      if (remaining > 0) {
+        const ratio = length ? remaining / length : 0;
+        trimmed.push({ x: start.x + (end.x - start.x) * ratio, y: start.y + (end.y - start.y) * ratio });
+      }
+      return trimmed;
+    }
+    remaining -= length;
+    trimmed.push(end);
+  }
+  return trimmed;
+}
+
+export type BombEvent = { id: number; launch: number; flight: number; from: FlowPoint; to: FlowPoint; arc: number };
+
+export function makeBombSchedule(seed: number, crater: FlowPoint, until: number): BombEvent[] {
+  const random = mulberry32(seed);
+  const events: BombEvent[] = [];
+  let time = 22 + random() * 8;
+  let guard = 0;
+  while (time < until && guard < 200) {
+    guard += 1;
+    events.push({
+      id: events.length,
+      launch: time,
+      flight: 1.5 + random() * 0.8,
+      from: crater,
+      to: {
+        x: BOMB_LANDING_BOUNDS.x0 + random() * (BOMB_LANDING_BOUNDS.x1 - BOMB_LANDING_BOUNDS.x0),
+        y: BOMB_LANDING_BOUNDS.y0 + random() * (BOMB_LANDING_BOUNDS.y1 - BOMB_LANDING_BOUNDS.y0),
+      },
+      arc: 110 + random() * 90,
+    });
+    time += 9 + random() * 9;
+  }
+  return events;
+}
+
+export function bombPosition(bomb: BombEvent, elapsed: number): FlowPoint & { height: number; progress: number } {
+  const progress = Math.max(0, Math.min(1, (elapsed - bomb.launch) / bomb.flight));
+  return {
+    x: bomb.from.x + (bomb.to.x - bomb.from.x) * progress,
+    y: bomb.from.y + (bomb.to.y - bomb.from.y) * progress,
+    height: Math.sin(Math.PI * progress) * bomb.arc,
+    progress,
+  };
+}
+
+export function bombsInFlight(schedule: BombEvent[], elapsed: number): BombEvent[] {
+  return schedule.filter((bomb) => elapsed >= bomb.launch && elapsed < bomb.launch + bomb.flight);
+}
+
+export function bombImpacts(schedule: BombEvent[], elapsed: number): BombEvent[] {
+  return schedule.filter((bomb) => elapsed >= bomb.launch + bomb.flight && elapsed < bomb.launch + bomb.flight + BOMB_IMPACT_WINDOW);
+}
+
+export function bombScorches(schedule: BombEvent[], elapsed: number): BombEvent[] {
+  return schedule.filter((bomb) => elapsed >= bomb.launch + bomb.flight && elapsed < bomb.launch + bomb.flight + BOMB_SCORCH_LINGER);
+}
+
+export function eruptedCount(schedule: BombEvent[], elapsed: number): number {
+  return schedule.filter((bomb) => bomb.launch <= elapsed).length;
+}
